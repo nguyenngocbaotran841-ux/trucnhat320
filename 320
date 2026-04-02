@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TRỰC NHẬT PHÒNG 320</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background-color: #f9f9f9; color: #333; max-width: 600px; margin: auto; }
+        .container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; font-size: 24px; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: 0.3s; }
+        .btn-reg { background-color: #3498db; color: white; }
+        .btn-reg:hover { background-color: #2980b9; }
+        .btn-excel { background-color: #27ae60; color: white; display: none; }
+        #msg { text-align: center; font-weight: bold; margin: 15px 0; min-height: 20px; }
+        
+        /* Bảng danh sách trực nhật */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { border: 1px solid #eee; padding: 10px; text-align: left; }
+        th { background: #f8f9fa; color: #666; }
+        .highlight { color: #e67e22; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🧹 TRỰC NHẬT PHÒNG 320</h1>
+    
+    <div id="msg">Đang tải dữ liệu...</div>
+
+    <div class="input-group">
+        <label>Họ và tên:</label>
+        <input type="text" id="name" placeholder="Nhập tên..." oninput="checkAdmin(this.value)">
+    </div>
+
+    <div class="input-group">
+        <label>Ngày trực 1:</label>
+        <input type="date" id="date1">
+    </div>
+
+    <div class="input-group">
+        <label>Ngày trực 2:</label>
+        <input type="date" id="date2">
+    </div>
+
+    <button class="btn-reg" onclick="register()">Đăng ký ngay</button>
+    <button id="adminBtn" class="btn-excel" onclick="exportToExcel()">📥 Xuất File Excel (Admin)</button>
+
+    <hr style="margin: 25px 0; border: 0; border-top: 1px solid #eee;">
+    
+    <h3>📅 Danh sách đã đăng ký:</h3>
+    <table id="listTable">
+        <thead>
+            <tr>
+                <th>Ngày</th>
+                <th>Người trực</th>
+            </tr>
+        </thead>
+        <tbody id="listBody">
+            </tbody>
+    </table>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<script>
+    // --- CẤU HÌNH FIREBASE ---
+  const firebaseConfig = {
+  apiKey: "AIzaSyCYtxoxW2AjBhGuxyb7KSwIjF5ViJxyx78",
+  authDomain: "trucnhat-ee425.firebaseapp.com",
+  databaseURL: "https://trucnhat-ee425-default-rtdb.firebaseio.com",
+  projectId: "trucnhat-ee425",
+  storageBucket: "trucnhat-ee425.firebasestorage.app",
+  messagingSenderId: "948524212562",
+  appId: "1:948524212562:web:cf61527c09eb1d63359a8b",
+  measurementId: "G-NRWERD1M5Z"
+};
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 1. TỰ ĐỘNG CẬP NHẬT DANH SÁCH (THÔNG BÁO CHO MỌI NGƯỜI)
+    db.ref("schedule").on("value", (snapshot) => {
+        const data = snapshot.val();
+        const listBody = document.getElementById("listBody");
+        const msg = document.getElementById("msg");
+        
+        if (!data) {
+            listBody.innerHTML = "<tr><td colspan='2'>Chưa có lịch trực.</td></tr>";
+            msg.innerText = "Sẵn sàng đăng ký!";
+            return;
+        }
+
+        let rows = "";
+        // Sắp xếp theo ngày
+        const sortedDates = Object.keys(data).sort();
+        sortedDates.forEach(date => {
+            rows += `<tr><td>${date}</td><td class="highlight">${data[date]}</td></tr>`;
+        });
+        listBody.innerHTML = rows;
+        msg.innerText = "Cập nhật lúc: " + new Date().toLocaleTimeString();
+        msg.style.color = "gray";
+    });
+
+    // 2. KIỂM TRA ADMIN
+    function checkAdmin(val) {
+        document.getElementById("adminBtn").style.display = (val === "admin320") ? "block" : "none";
+    }
+
+    // 3. ĐĂNG KÝ
+    async function register() {
+        const name = document.getElementById("name").value.trim();
+        const d1 = document.getElementById("date1").value;
+        const d2 = document.getElementById("date2").value;
+        const msg = document.getElementById("msg");
+
+        if (!name || !d1 || !d2) {
+            alert("❗ Vui lòng điền đủ tên và 2 ngày!");
+            return;
+        }
+
+        try {
+            const s1 = await db.ref("schedule/" + d1).once("value");
+            const s2 = await db.ref("schedule/" + d2).once("value");
+
+            if (s1.exists() || s2.exists()) {
+                alert("❌ Ngày này đã có người đăng ký rồi!");
+            } else {
+                await db.ref("schedule/" + d1).set(name);
+                await db.ref("schedule/" + d2).set(name);
+                alert("✅ Đăng ký thành công!");
+                document.getElementById("date1").value = "";
+                document.getElementById("date2").value = "";
+            }
+        } catch (e) {
+            alert("🚨 Lỗi kết nối!");
+        }
+    }
+
+    // 4. XUẤT EXCEL (FIX LỖI)
+    function exportToExcel() {
+        db.ref("schedule").once("value").then(snapshot => {
+            const data = snapshot.val();
+            if (!data) return alert("Không có dữ liệu để xuất!");
+
+            const rows = [ ["NGÀY TRỰC", "NGƯỜI TRỰC"] ];
+            Object.keys(data).sort().forEach(date => {
+                rows.push([date, data[date]]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Lịch Trực");
+            
+            // Lệnh tải file
+            XLSX.writeFile(wb, "Lich_Truc_Phong_320.xlsx");
+        }).catch(err => {
+            alert("Lỗi khi xuất file: " + err);
+        });
+    }
+</script>
+
+</body>
+</html>
